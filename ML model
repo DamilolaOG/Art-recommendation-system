@@ -1,0 +1,1163 @@
+Code cell <qxygmxruvqyT>
+# %% [code]
+# Import libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import linear_kernel
+from sklearn.cluster import KMeans
+
+import os
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder
+import warnings
+warnings.filterwarnings('ignore')
+import seaborn as sns
+from scipy import stats
+from sklearn.preprocessing import *
+from sklearn. metrics import *
+from sklearn.linear_model import LinearRegression, SGDRegressor
+from sklearn.ensemble import RandomForestRegressor
+
+Text cell <p5hb4Us7tmpR>
+# %% [markdown]
+# Reading and displaying our dataset for content based filtering
+
+Code cell <TGIlUVdZwE2S>
+# %% [code]
+#read datasets
+art_data = pd.read_csv('WikiArt-info.csv')
+
+Code cell <zKz3_pvc7KJa>
+# %% [code]
+art_data.head()
+
+Code cell <ljDhn7ie8-_i>
+# %% [code]
+art_anotation = pd.read_csv('WikiArt-Emotions-Ag4.csv')
+
+Code cell <m9tl11Xw9MeN>
+# %% [code]
+art_anotation.head()
+
+Text cell <RSPo6ToejAfA>
+# %% [markdown]
+# Performing Exploratory Data Analysis
+
+Code cell <gozJyuWCDNi_>
+# %% [code]
+art_data_dropped = art_data.drop(columns=art_data.columns.difference(['ID','Image URL']))
+#drop all colums in art_data except 'ID' and 'image URL' so as to merge image Url with  the 'art_annotation dataframe'
+
+Code cell <8X2pYp9FCg6i>
+# %% [code]
+art_data_dropped.head()
+
+Code cell <vB870i6CBcH0>
+# %% [code]
+main_art = pd.merge(art_anotation, art_data_dropped, on='ID')
+
+Code cell <ApMMuaEhESaW>
+# %% [code]
+main_art.head()
+
+Code cell <5Ck7MAzUEqr6>
+# %% [code]
+print(main_art.shape)
+#This prints out the number of rows and columns in our dataset
+
+Code cell <1vHrAG5mGzc4>
+# %% [code]
+print(main_art.columns)
+
+Code cell <ggbImwFCGCQz>
+# %% [code]
+#we need to drop the columns with annotations for title only and image only, we are only focusing on the annotations when both image and title are combined.
+main_art = main_art.drop(columns=main_art.columns.difference(['ID', 'Style', 'Category', 'Artist', 'Title', 'Year', 'Is painting',
+       'Face/body', 'Ave. art rating', 'Art (image+title): agreeableness',
+       'Art (image+title): anger', 'Art (image+title): anticipation',
+       'Art (image+title): arrogance', 'Art (image+title): disagreeableness',
+       'Art (image+title): disgust', 'Art (image+title): fear',
+       'Art (image+title): gratitude', 'Art (image+title): happiness',
+       'Art (image+title): humility', 'Art (image+title): love',
+       'Art (image+title): optimism', 'Art (image+title): pessimism',
+       'Art (image+title): regret', 'Art (image+title): sadness',
+       'Art (image+title): shame', 'Art (image+title): shyness',
+       'Art (image+title): surprise', 'Art (image+title): trust',
+       'Art (image+title): neutral','Image URL']))
+
+Code cell <R5p9u5YIJOd0>
+# %% [code]
+main_art.head()
+
+Code cell <JeJHnhisJjQ2>
+# %% [code]
+print(main_art.shape)
+
+Code cell <bwXp8mRsJo6V>
+# %% [code]
+print(main_art.columns)
+
+Code cell <K5o62xHZJ8ba>
+# %% [code]
+#rename colums with 'Art (image+title with 'emotions')
+main_art = main_art.rename(columns={'Art (image+title): agreeableness': 'Emotion:agreeableness',
+       'Art (image+title): anger': 'Emotion:anger', 'Art (image+title): anticipation': 'Emotion:anticipation',
+       'Art (image+title): arrogance': 'Emotion:arrogance', 'Art (image+title): disagreeableness': 'Emotion:disagreeableness',
+       'Art (image+title): disgust': 'Emotion:disgust', 'Art (image+title): fear': 'Emotion:fear',
+       'Art (image+title): gratitude': 'Emotion:gratitude', 'Art (image+title): happiness': 'Emotion:happiness',
+       'Art (image+title): humility': 'Emotion:humility', 'Art (image+title): love': 'Emotion:love',
+       'Art (image+title): optimism': 'Emotion:optimism', 'Art (image+title): pessimism': 'Emotion:pessimism',
+       'Art (image+title): regret': 'Emotion:regret', 'Art (image+title): sadness': 'Emotion:sadness',
+       'Art (image+title): shame': 'Emotion:shame', 'Art (image+title): shyness': 'Emotion:shyness',
+       'Art (image+title): surprise': 'Emotion:surprise', 'Art (image+title): trust': 'Emotion:trust',
+       'Art (image+title): neutral': 'Emotion:neutral'})
+
+Code cell <BrJxAq0IMHH3>
+# %% [code]
+print(main_art.columns)
+
+Code cell <wbu_ucQSMNZs>
+# %% [code]
+main_art.head()
+
+Code cell <Y9LE3WseMX73>
+# %% [code]
+print(main_art.shape)
+
+Code cell <pmJeqj60Mda3>
+# %% [code]
+print(main_art.info())
+
+Code cell <-zHm4jnhMtPg>
+# %% [code]
+main_art.describe()
+#print some statistical features for our dataset
+
+Code cell <mgnqo52IMygM>
+# %% [code]
+main_art.isnull().sum()
+#check for missing values
+
+Text cell <4Z4ZINWtNJrH>
+# %% [markdown]
+================================================================================
+
+Text cell <14zvcISJ33Hb>
+# %% [markdown]
+# Content based filtering model
+
+Text cell <AOuTnQVey47I>
+# %% [markdown]
+Feature Selection
+
+Code cell <kxO1uAXCNTnx>
+# %% [code]
+Cont = main_art[['ID', 'Style', 'Category', 'Title', 'Artist', 'Face/body']] #selecting key features for our content based filtering
+
+Code cell <bDtEsJUaNeK7>
+# %% [code]
+Cont
+
+Code cell <Jxg_bnp7NoT3>
+# %% [code]
+Cont ['Tags'] = Cont['Style'] +', ' +Cont['Category'] + ', ' + Cont['Artist'] #merge style, category and artist into Tags
+
+Code cell <8mFNySbDNprV>
+# %% [code]
+Cont
+
+Code cell <T4DqD-7pN0YI>
+# %% [code]
+New_Cont= Cont.drop(columns=['Style','Category','Artist'])
+
+Code cell <-dggg8SYN1r_>
+# %% [code]
+New_Cont
+
+Code cell <Q0Rwo1YO8yr0>
+# %% [code]
+New_Cont.info()
+
+Text cell <XxhtGD_I8nFM>
+# %% [markdown]
+Clustering
+
+Code cell <jE5satPDqpxc>
+# %% [code]
+# Apply TF-IDF vectorization to item features
+tfidf_vectorizer = TfidfVectorizer()
+tfidf_matrix = tfidf_vectorizer.fit_transform(New_Cont['Tags'])
+
+
+Code cell <wz3j3qkSyMVR>
+# %% [code]
+print(tfidf_matrix)
+
+Code cell <Sw26LhZG2Qg4>
+# %% [code]
+# Perform K-means clustering
+num_clusters = 200
+kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+item_clusters = kmeans.fit_predict(tfidf_matrix)
+
+Code cell <1i2Af_V3zAya>
+# %% [code]
+# Calculate cosine similarity between items based on attributes
+cosine_sim = linear_kernel(tfidf_matrix, tfidf_matrix)
+
+Code cell <cxOYtIIXPn8F>
+# %% [code]
+
+# Create a dictionary to map item IDs to cluster labels
+item_to_cluster = dict(zip(New_Cont.index, item_clusters))
+
+Code cell <2xoCFRGcevEg>
+# %% [code]
+print(item_to_cluster)
+
+Code cell <gI2DYQHbmNmk>
+# %% [code]
+New_Cont['clusters']=item_to_cluster
+
+Code cell <Jt_VQ0ZholWh>
+# %% [code]
+New_Cont.sample(15)
+
+Code cell <-N8PLTEUEeRk>
+# %% [code]
+# Define the 'id' you want to check
+search_id = '577285c9edc2cb3880023e2f'
+
+# Search for the 'item_id' corresponding to the 'id'
+item_id = None  # Initialize with None in case the 'id' is not found
+
+# Assuming you have a DataFrame 'your_data' with columns 'item_id' and 'id'
+for index, row in New_Cont.iterrows():
+    if row['ID'] == search_id:
+        item_id = index  # Use the index as 'item_id'
+        break
+
+if item_id is not None:
+    cluster_id = item_to_cluster.get(item_id)
+
+    cluster_items = []
+
+    if cluster_id is not None:
+        print(f"Item {item_id} belongs to Cluster {cluster_id}")
+
+        # Find indices of items in the same cluster
+        cluster_items_indices = np.where(item_clusters == cluster_id)[0]
+
+        # Exclude the input item itself from the indices
+        cluster_items_indices = cluster_items_indices[cluster_items_indices != item_id]
+
+        # Get the item IDs of all items in the same cluster
+        items_in_cluster = [item_id for item_id in item_to_cluster.keys() if item_to_cluster[item_id] == cluster_id]
+
+        # Remove the input item from the items in the cluster
+        items_in_cluster.remove(item_id)
+
+        # Assign the item IDs to the cluster_items list
+        cluster_items.extend(items_in_cluster)
+    else:
+        print(f"Item {item_id} not found in any cluster.")
+
+    print('Items in this cluster are:')
+    # Print the saved cluster items (only item IDs) up to the top 8
+    for i, item in enumerate(cluster_items[:8], start=1):
+        print(f"{i}. Item ID {item}")
+
+    # Assign the top 8 cluster item IDs to a variable
+    cluster_item_ids = cluster_items[:8]
+
+    print(cluster_item_ids)
+
+else:
+    print(f"No matching 'item_id' found for 'id' {search_id}")
+
+
+Text cell <vpBaExSzFxF4>
+# %% [markdown]
+Content-based Algorithm
+
+Code cell <9MJXVLUo3LS1>
+# %% [code]
+def recommend_with_cosine_similarity(search_id, num_recommendations=8):
+
+# Search for the 'item_id' corresponding to the 'id'
+    item_id = None  # Initialize with None in case the 'id' is not found
+
+# Assuming you have a DataFrame 'your_data' with columns 'item_id' and 'id'
+    for index, row in New_Cont.iterrows():
+     if row['ID'] == search_id:
+        item_id = index  # Use the index as 'item_id'
+        break
+
+    if item_id is not None:
+       cluster_id = item_to_cluster.get(item_id)
+
+    cluster_items = []
+    if cluster_id is not None:
+        print(f"Item {item_id} belongs to Cluster {cluster_id}")
+
+        # Find indices of items in the same cluster
+        cluster_items_indices = np.where(item_clusters == cluster_id)[0]
+
+        # Exclude the input item itself from the indices
+        cluster_items_indices = cluster_items_indices[cluster_items_indices != item_id]
+
+        # Get the item IDs of all items in the same cluster
+        items_in_cluster = [item_id for item_id in item_to_cluster.keys() if item_to_cluster[item_id] == cluster_id]
+        # Remove the input item from the items in the cluster
+        items_in_cluster.remove(item_id)
+
+        # Assign the item IDs to the cluster_items list
+        cluster_items.extend(items_in_cluster)
+    else:
+        print(f"Item {item_id} not found in any cluster.")
+
+    print('Top 8 Items in this cluster are:')
+    # Print the saved cluster items (only item IDs) up to the top 8
+    for i, item in enumerate(cluster_items[:8], start=1):
+        title = New_Cont['Title'].iloc[item]  # Replace 'Title' with the actual column name
+        print(f"{i}. Item ID {item} - Title: {title}")  # Print title as well
+
+    # Assign the top 8 cluster item IDs to a variable
+    cluster_item_ids = cluster_items[:8]
+
+    print(cluster_item_ids)
+
+    # Calculate cosine similarity scores for items in the cluster
+    sim_scores = list(enumerate(cosine_sim[item_id]))
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+    sim_scores = [i for i in sim_scores if i[0] in cluster_items_indices]
+    sim_scores = sim_scores[:num_recommendations]
+
+    recommended_indices = [i[0] for i in sim_scores]
+
+    print("\nRecommended Items:")
+    for i, index in enumerate(recommended_indices):
+        Id = main_art['ID'].iloc[index]
+        title = New_Cont['Title'].iloc[index]  # Replace 'Title' with the actual column name
+        image_url = main_art['Image URL'].iloc[index]
+        style = main_art['Style'].iloc[index]
+        category = main_art['Category'].iloc[index]
+        artist = main_art['Artist'].iloc[index]
+        #print(f"{i + 1}.Item ID {index} ID:{Id} - Title: {title} - Image URL: {image_url} - Style: {style} - Category: {category} - Artist: {artist}")  # Print title as well
+        print(f"{i + 1}. Item ID {index}")
+        print(f"   ID: {Id}")
+        print(f"   Title: {title}")
+        print(f"   Image URL: {image_url}")
+        print(f"   Style: {style}")
+        print(f"   Category: {category}")
+        print(f"   Artist: {artist}")
+    return cluster_item_ids, recommended_indices
+
+# Define the 'id' you want to check
+search_id = '577285c9edc2cb3880023e2f'
+
+# Get the recommendations using cosine similarity
+cluster_item_ids, recommended_indices = recommend_with_cosine_similarity(search_id)
+
+# Filter the items in the same cluster to only those in the top clusters
+actual_items = cluster_item_ids
+print("\nRECOMMENDED ITEMS INDEX:")
+print(recommended_indices)
+print("\nCLUSTER ITEMS INDEX:")
+print(cluster_item_ids)
+# Calculate precision and recall
+precision = precision_score(actual_items, recommended_indices, average='micro')
+recall = recall_score(actual_items, recommended_indices, average='micro')
+f1 = f1_score(actual_items, recommended_indices, average='micro')
+
+print(f"\nPrecision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+print(f"F1 Score: {f1:.2f}")
+
+
+Code cell <EzLsL1muQqR9>
+# %% [code]
+#import pickle
+
+Code cell <656mjTJ6QssG>
+# %% [code]
+#pickle.dump(New_Cont, open('art_list.pkl','wb')) #creating the pickle file for our web app
+
+Code cell <rQEGsZQ6SAAi>
+# %% [code]
+#pickle.dump(New_Cont, open('similarity.pkl','wb'))
+
+Code cell <JQmdK_TnSj5s>
+# %% [code]
+#pickle.load(open())
+
+Text cell <ANsFBGJ-Tg8I>
+# %% [markdown]
+===============================================================================
+
+Text cell <mCSmMgbuT6Ll>
+# %% [markdown]
+# Reading and displaying our dataset for collaborative filtering
+
+Code cell <cD4wNSOiUIo->
+# %% [code]
+workers = pd.read_csv('WikiArt-annotations.csv')
+
+Code cell <dq8__yv6Vru_>
+# %% [code]
+workers.head()
+
+Code cell <KMPgOlVfkmU8>
+# %% [code]
+workers.shape
+
+Code cell <tYMUD4BHY8bC>
+# %% [code]
+workers = workers.drop(columns=workers.columns.difference(['Worker ID','Art (image+title) #1: ID','Art (image+title) #1: Emotions','Art (image+title) #1: Face/body','Art (image+title) #1: Art rating','Art (image+title) #2: ID','Art (image+title) #2: Emotions','Art (image+title) #2: Face/body','Art (image+title) #2: Art rating','Art (image+title) #3: ID','Art (image+title) #3: Emotions','Art (image+title) #3: Face/body','Art (image+title) #3: Art rating','Art (image+title) #4: ID','Art (image+title) #4: Emotions','Art (image+title) #4: Face/body','Art (image+title) #4: Art rating','Art (image+title) #5: ID','Art (image+title) #5: Emotions','Art (image+title) #5: Face/body','Art (image+title) #5: Art rating',]))
+#drop all art only and image only.
+
+Code cell <U_vsuM6Ca4Hj>
+# %% [code]
+workers.head()
+
+Code cell <KqbBkUcgdGCY>
+# %% [code]
+print(workers.columns)
+
+Code cell <5_w4D3sId1TF>
+# %% [code]
+df = pd.DataFrame(workers)
+
+# Remove the common string from column names
+common_string = '(image+title)'
+df.columns = [col.replace(common_string, '') if i > 0 else col for i, col in enumerate(df.columns)]
+
+# Display the modified DataFrame with updated column names
+df.head()
+
+Code cell <C_LEdlcwmN2y>
+# %% [code]
+
+# Drop columns 'Face/body' since we would not be needing them
+keyword = 'Face/body'
+columns_to_drop = df.columns[df.columns.str.contains(keyword)]
+df = df.drop(columns_to_drop, axis=1)
+df.head()
+
+Code cell <iMKY8lwPo3TX>
+# %% [code]
+df.shape
+
+
+Code cell <q5dpQxuQr3lR>
+# %% [code]
+df['Worker ID'].value_counts() #count how many times each worker had to rate five pieces of art.
+
+Code cell <mLYZUKTYudNs>
+# %% [code]
+print(df.columns)
+
+Code cell <UD-KkJNp29NG>
+# %% [code]
+df = df.rename(columns={'Art  #1: Art rating': 'rating1'})
+df = df.rename(columns={'Art  #2: Art rating': 'rating2'})
+df = df.rename(columns={'Art  #3: Art rating': 'rating3'})
+df = df.rename(columns={'Art  #4: Art rating': 'rating4'})
+df = df.rename(columns={'Art  #5: Art rating': 'rating5'})
+
+df = df.rename(columns={'Art  #1: ID': 'ID1'})
+df = df.rename(columns={'Art  #2: ID': 'ID2'})
+df = df.rename(columns={'Art  #3: ID': 'ID3'})
+df = df.rename(columns={'Art  #4: ID': 'ID4'})
+df = df.rename(columns={'Art  #5: ID': 'ID5'})
+
+df = df.rename(columns={'Art  #1: Emotions': 'Emotions1'})
+df = df.rename(columns={'Art  #2: Emotions': 'Emotions2'})
+df = df.rename(columns={'Art  #3: Emotions': 'Emotions3'})
+df = df.rename(columns={'Art  #4: Emotions': 'Emotions4'})
+df = df.rename(columns={'Art  #5: Emotions': 'Emotions5'})
+
+Code cell <r5wh9M9G3nrK>
+# %% [code]
+print(df.columns)
+
+Code cell <3v1gn07R3r80>
+# %% [code]
+df.head()
+
+Code cell <KP0bhU6V3vEz>
+# %% [code]
+df['Worker ID'].unique().shape #get how many workers gave rating
+
+Code cell <ntbtfjqmuNik>
+# %% [code]
+x = df['Worker ID'].value_counts() >50 #select only workers with more than 50 ratings
+
+Code cell <P7jtfFa4vPY4>
+# %% [code]
+x
+
+Code cell <gtGhmRvXvYDA>
+# %% [code]
+x[x].shape
+
+Code cell <XA1_bqHgvpsC>
+# %% [code]
+y = x[x].index
+y
+
+Code cell <EXtWrvBrv6RW>
+# %% [code]
+df = df[df['Worker ID'].isin(y)]
+df.head()
+
+Code cell <8bb8jNpTwT_z>
+# %% [code]
+df.shape
+
+Code cell <Xi1eZMl8we4j>
+# %% [code]
+New_Cont.head() #Remember our data frame for collaborative filtering?
+
+Code cell <_UL-MfArwwzU>
+# %% [code]
+#we want to merge it with our df' data frame so we can get the title for each ID
+merged_df = df
+for i in range(1, 6):
+    column_name = f'ID{i}'
+    merged_df = pd.merge(merged_df, New_Cont[['ID', 'Title','Tags']], left_on=column_name, right_on='ID', how='left', suffixes=('', f'_ID{i}'))
+    merged_df = merged_df.drop(columns=['ID'])
+
+merged_df.head()
+
+Code cell <kYVxVs2T13hx>
+# %% [code]
+merged_df.columns
+
+Code cell <dyKOZKGZ2mkT>
+# %% [code]
+#Rename 'Title' and'Tags' for ID1 for match the rest
+merged_df = merged_df.rename({'Title': 'Title_ID1', 'Tags': 'Tags_ID1'}, axis=1)
+
+Code cell <1n1x9RRV3RG4>
+# %% [code]
+merged_df.head()
+
+Code cell <Zs3cJxuC0tOJ>
+# %% [code]
+#Rearange our dataframe accordingly
+column_order=['Worker ID', 'ID1', 'Title_ID1', 'Tags_ID1', 'Emotions1', 'rating1', 'ID2', 'Title_ID2', 'Tags_ID2', 'Emotions2', 'rating2', 'ID3', 'Title_ID3', 'Tags_ID3', 'Emotions3', 'rating3', 'ID4', 'Title_ID4', 'Tags_ID4', 'Emotions4', 'rating4', 'ID5', 'Title_ID5', 'Tags_ID5', 'Emotions5', 'rating5' ]
+merged_df = merged_df[column_order]
+merged_df.head()
+
+Code cell <Y2OS7kQyLinp>
+# %% [code]
+Temp_merged = merged_df[['ID1','Title_ID1','ID2','Title_ID2','ID3','Title_ID3','ID4','Title_ID4','ID5','Title_ID5']]
+Temp_merged.head()
+
+Code cell <tIev9Opd1iK1>
+# %% [code]
+merged_df.shape
+
+Code cell <iNqtMIa5-w0s>
+# %% [code]
+Art_rating_num = merged_df.groupby(['Title_ID1', 'Title_ID2', 'Title_ID3', 'Title_ID4', 'Title_ID5'])[['rating1', 'rating2', 'rating3', 'rating4', 'rating5']].count().reset_index()
+
+
+Code cell <itW5FV96D1N3>
+# %% [code]
+Art_rating_num.head()
+
+Code cell <Szu7ytDGPm3O>
+# %% [code]
+Art_rating_num.rename(columns={"rating1":"num_of_rating1", "rating2":"num_of_rating2", "rating3":"num_of_rating3", "rating4":"num_of_rating4", "rating5":"num_of_rating5"}, inplace=True)
+
+Code cell <IjiBdIHmP64c>
+# %% [code]
+Art_rating_num.head(2)
+
+Code cell <HVkY8wPIkP7j>
+# %% [code]
+merged_df.head(1)
+
+Code cell <ot7Z5aHSueh2>
+# %% [code]
+Art_rating_num = merged_df.merge(Art_rating_num, on=['Title_ID1', 'Title_ID2', 'Title_ID3', 'Title_ID4', 'Title_ID5'])
+Art_rating_num.head()
+
+Code cell <a9Wxe6cMXbso>
+# %% [code]
+#Merge all titles and ratings, then calculate the number of rating counts
+
+# Create an empty column 'Title'
+Art_rating_num['Title'] = ""
+Art_rating_num['rating_Count'] = ""
+
+# Stack the title columns into the 'Title' column
+Art_rating_num['Title'] = Art_rating_num[['Title_ID1', 'Title_ID2', 'Title_ID3', 'Title_ID4', 'Title_ID5']].stack().reset_index(drop=True)
+Art_rating_num['rating_Count'] = Art_rating_num[['num_of_rating1', 'num_of_rating2', 'num_of_rating3', 'num_of_rating4', 'num_of_rating5']].stack().reset_index(drop=True)
+
+# Group the titles and calculate the count
+title_counts = Art_rating_num['Title'].value_counts().reset_index()
+title_counts.columns = ['Title', 'rating_Count']
+
+title_counts.head(10)
+
+Code cell <YxpTP9T0jHTK>
+# %% [code]
+final_df =  New_Cont.merge(title_counts, on ='Title')
+
+Code cell <c5EY86FCjmb3>
+# %% [code]
+final_df.head(10)
+
+
+Code cell <bA7Rtc_8k8sE>
+# %% [code]
+final_df.shape
+
+Code cell <bW7YcOgImEO2>
+# %% [code]
+#remove titles with only one rating
+final_df = final_df[final_df['rating_Count']>=5].reset_index(drop=True)
+final_df.head()
+
+Code cell <-3XfN_BWofpl>
+# %% [code]
+final_df.shape
+
+Code cell <5aG1506PpHmC>
+# %% [code]
+final_df.drop_duplicates(['Title'])
+
+Code cell <Wfp5yKk0pPoU>
+# %% [code]
+final_df.shape
+
+Code cell <ghep-I6_wTIW>
+# %% [code]
+only_Id = final_df[['ID']]
+only_Id.head()
+
+Code cell <R_X7mI4DBWAr>
+# %% [code]
+only_Id.shape
+
+Code cell <Cc7Tg_myktEq>
+# %% [code]
+merged_df_ID = merged_df[['ID1','ID2','ID3','ID4','ID5']]
+
+Code cell <QwtduRLVD2mV>
+# %% [code]
+merged_df_ID.head()
+
+Code cell <o62g25YKBKIy>
+# %% [code]
+merged_df.shape
+
+Code cell <UA4IcuLSy6ss>
+# %% [code]
+# Get the unique IDs from df2
+unique_ids = only_Id['ID'].unique()
+
+# Filter df1 based on the presence of IDs in df2
+filtered_df1 = merged_df_ID[merged_df_ID[['ID1','ID2','ID3','ID4','ID5']].isin(unique_ids)]
+print(filtered_df1)
+
+Code cell <2Dts_p6vHX_->
+# %% [code]
+filtered_df1 = filtered_df1.dropna()
+print(filtered_df1)
+
+Code cell <yzin96S4zlQu>
+# %% [code]
+filtered_df1.head()
+
+Code cell <eNbeWZ1M5OFy>
+# %% [code]
+filtered_df1.shape
+
+Code cell <a0apiOt5IzJ_>
+# %% [code]
+merged_df.head(2)
+
+Code cell <B9LnmVdRI2PA>
+# %% [code]
+merged_df.shape
+
+Code cell <1dpWukEiH5Q4>
+# %% [code]
+final_data =  merged_df.merge(filtered_df1, on =['ID1','ID2','ID3','ID4','ID5'])
+
+Code cell <yPrxtFCaInX2>
+# %% [code]
+final_data.head()
+
+
+Code cell <t5PGAgIiJp8k>
+# %% [code]
+final_data.drop_duplicates(['Worker ID'])
+#This table shows a list of all the titles with more than 5 total ratings and the ratings given to them by each worker who has rated more than 50 titles in
+
+Code cell <0K04n9-QIsM9>
+# %% [code]
+final_data.shape
+
+Code cell <ON5NWDQUskY0>
+# %% [code]
+Title_1 = final_data[['Worker ID','ID1','Title_ID1','Tags_ID1','rating1']]
+Title_1.drop_duplicates(['Worker ID'])
+Title_1=Title_1.rename(columns={'ID1': 'ID','Title_ID1': 'Title','Tags_ID1': 'Tags','rating1': 'rating'})
+Title_1.head()
+
+Code cell <k2jgZx4nv6Ii>
+# %% [code]
+Title_2 = final_data[['Worker ID','ID2','Title_ID2','Tags_ID2','rating2']]
+Title_2.drop_duplicates(['Worker ID'])
+Title_2=Title_2.rename(columns={'ID2': 'ID','Title_ID2': 'Title','Tags_ID2': 'Tags','rating2': 'rating'})
+Title_2.head()
+
+Code cell <ui6qrJcWwYPn>
+# %% [code]
+Title_3 = final_data[['Worker ID','ID3','Title_ID3','Tags_ID3','rating3']]
+Title_3.drop_duplicates(['Worker ID'])
+Title_3=Title_3.rename(columns={'ID3': 'ID','Title_ID3': 'Title','Tags_ID3': 'Tags','rating3': 'rating'})
+Title_3.head()
+
+Code cell <u_Ev2ThdxAXx>
+# %% [code]
+Title_4 = final_data[['Worker ID','ID4','Title_ID4','Tags_ID4','rating4']]
+Title_4.drop_duplicates(['Worker ID'])
+Title_4=Title_4.rename(columns={'ID4': 'ID','Title_ID4': 'Title','Tags_ID4': 'Tags','rating4': 'rating'})
+Title_4.head()
+
+Code cell <gV0o6JDJxRSL>
+# %% [code]
+Title_5 = final_data[['Worker ID','ID5','Title_ID5','Tags_ID5','rating5']]
+Title_5.drop_duplicates(['Worker ID'])
+Title_5=Title_5.rename(columns={'ID5': 'ID','Title_ID5': 'Title','Tags_ID5': 'Tags','rating5': 'rating'})
+Title_5.head()
+
+Code cell <WDTa_0UXxgDm>
+# %% [code]
+
+Title_1 = Title_1.set_index('ID')
+Title_2 = Title_2.set_index('ID')
+Title_3 = Title_3.set_index('ID')
+Title_4 = Title_4.set_index('ID')
+Title_5 = Title_5.set_index('ID')
+
+# Concatenate the dataframes vertically (stacked)
+merged_df = pd.concat([Title_1, Title_2, Title_3, Title_4, Title_5])
+
+# Reset the index to convert 'ID' back to a regular column
+merged_df = merged_df.reset_index()
+merged_df.head()
+
+Code cell <-O8uDhXO0eP0>
+# %% [code]
+merged_df.shape
+
+Text cell <oTwfb1W2L-dQ>
+# %% [markdown]
+### PivotTable to group Users
+
+Code cell <ljBNoGl4Kjzf>
+# %% [code]
+Pivot = merged_df.pivot_table(columns = {'Worker ID'}, index = ['Title'], values = ['rating'])
+
+Code cell <nXkkkgsiVErL>
+# %% [code]
+Pivot
+
+Code cell <dKEv0FKDP3FY>
+# %% [code]
+Pivot.shape
+
+Code cell <8jmlV46bQLoF>
+# %% [code]
+Pivot.fillna(0, inplace=True)
+Pivot
+
+Code cell <_nnj5nvCpswu>
+# %% [code]
+
+# Create a new DataFrame to store the modified pivot table
+new_pivot = pd.DataFrame(index=Pivot.index)
+
+# Add a row with index numbers
+new_pivot['Index'] = range(len(Pivot))
+
+# Concatenate the index row to the pivot table
+final_pivot = pd.concat([new_pivot, Pivot], axis=1)
+
+# Save all the indexes in an array
+indexes = final_pivot['Index'].values
+
+final_pivot.head()
+
+Text cell <-flJUeet_Ybl>
+# %% [markdown]
+CSR Matrix
+
+Code cell <eGocRod1_d1j>
+# %% [code]
+from scipy.sparse import csr_matrix
+
+Code cell <TTqoB_TL_yMg>
+# %% [code]
+Pivot.sparse = csr_matrix(Pivot)
+Pivot.sparse
+
+Code cell <LlWM0U-AatLw>
+# %% [code]
+print(Pivot.sparse)
+
+Code cell <nQKIfTxpLsN6>
+# %% [code]
+from sklearn.neighbors import NearestNeighbors
+
+Code cell <9JVzN3SqMJ3I>
+# %% [code]
+model = NearestNeighbors(metric = 'cosine', algorithm='brute')
+model.fit(Pivot.sparse)
+
+Code cell <iGyHTlEION_V>
+# %% [code]
+distance, suggestion = model.kneighbors(Pivot.iloc[12,:].values.reshape(1,-1), n_neighbors=6)
+
+Code cell <8KuulL9mQ89E>
+# %% [code]
+distance
+
+Code cell <6YEqE6WebBFr>
+# %% [code]
+suggestion
+
+Code cell <cQ3miulNbWAD>
+# %% [code]
+for i in range(len (suggestion)):
+  print(Pivot.index[suggestion[i]])
+
+Code cell <TnJg6iKTb_A2>
+# %% [code]
+Pivot.index
+
+Code cell <e3ZHIKwEdRkT>
+# %% [code]
+Titles=Pivot.index
+
+Code cell <CM4TS3hedYWF>
+# %% [code]
+Titles.shape
+
+Code cell <lRrV1pyrgzeV>
+# %% [code]
+def collab(title_index):
+    distance, suggestion = model.kneighbors(Pivot.iloc[title_index, :].values.reshape(1, -1), n_neighbors=9)
+
+    input_title = Pivot.index[title_index]
+
+    print(f"Recommendations for index {title_index} ({input_title}):")
+    for i, index in enumerate(suggestion[0]):
+        if Pivot.index[index] != input_title:
+            print(f"  Index: {index}, Title: {Pivot.index[index]}")
+
+Code cell <IjpoPFftiU3C>
+# %% [code]
+collab(5)
+
+Code cell <7IuZczhKk5q9>
+# %% [code]
+# Perform K-means clustering
+num_clusters = 30
+kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+item_clusters = kmeans.fit_predict(Pivot.sparse)
+
+# Calculate cosine similarity between items based on attributes
+cosine_sim = linear_kernel(Pivot.sparse, Pivot.sparse)
+
+# Create a dictionary to map item IDs to cluster labels
+item_to_cluster = dict(zip(indexes, item_clusters))
+
+print(item_to_cluster)
+
+Code cell <JL10x1yQjl11>
+# %% [code]
+# Define the 'id' you want to check
+search_id = '577284aeedc2cb3880fe8ca7'
+
+# Search for the 'item_id' corresponding to the 'id'
+item_id = None  # Initialize with None in case the 'id' is not found
+
+# Assuming you have a DataFrame 'your_data' with columns 'item_id' and 'id'
+for index, row in New_Cont.iterrows():
+    if row['ID'] == search_id:
+        item_id = index  # Use the index as 'item_id'
+        break
+
+if item_id is not None:
+    cluster_id = item_to_cluster.get(item_id)
+
+    cluster_items = []
+
+if cluster_id is not None:
+    print(f"Item {index} belongs to Cluster {cluster_id}")
+
+    # Find indices of items in the same cluster
+    cluster_items_indices = np.where(item_clusters == cluster_id)[0]
+
+    # Exclude the input item itself from the indices
+    cluster_items_indices = cluster_items_indices[cluster_items_indices != index]
+
+    # Get the item IDs of all items in the same cluster
+    items_in_cluster = [index for index in item_to_cluster.keys() if item_to_cluster[index] == cluster_id]
+
+    # Remove the input item from the items in the cluster
+    items_in_cluster.remove(index)
+
+    # Assign the item IDs to the cluster_items list
+    cluster_items.extend(items_in_cluster)
+else:
+    print(f"Item {index} not found in any cluster.")
+
+
+print('Items in this cluster are:')
+# Print the saved cluster items (only item IDs) up to the top 8
+for i, item in enumerate(cluster_items[:8], start=1):
+    print(f"{i}. Item ID {item}")
+
+# Assign the top 8 cluster item IDs to a variable
+cluster_item_ids = cluster_items[:8]
+
+print(cluster_item_ids)
+
+Text cell <6qqW2swAGrtL>
+# %% [markdown]
+Collaborative filtering model
+
+Code cell <NtKlmEqZ2dbX>
+# %% [code]
+def get_recommendations(search_id):
+# Search for the 'item_id' corresponding to the 'id'
+    item_id = None  # Initialize with None in case the 'id' is not found
+
+# Assuming you have a DataFrame 'your_data' with columns 'item_id' and 'id'
+    for index, row in New_Cont.iterrows():
+      if row['ID'] == search_id:
+        item_id = index  # Use the index as 'item_id'
+        break
+
+    if item_id is not None:
+       cluster_id = item_to_cluster.get(item_id)
+
+       cluster_items = []
+
+
+    if cluster_id is not None:
+        # Find indices of items in the same cluster
+        cluster_items_indices = np.where(item_clusters == cluster_id)[0]
+
+        # Exclude the input item itself from the indices
+        cluster_items_indices = cluster_items_indices[cluster_items_indices != index]
+
+        # Get the item IDs of all items in the same cluster
+        items_in_cluster = [item for item in item_to_cluster.keys() if item_to_cluster[item] == cluster_id]
+
+        # Remove the input item from the items in the cluster
+        items_in_cluster.remove(index)
+
+        # Assign the item IDs to the cluster_items list
+        cluster_items.extend(items_in_cluster)
+    else:
+        print(f"Item {index} not found in any cluster.")
+
+    # Print the top 8 cluster items
+    print('Top 8 items in this cluster are:')
+    for i, item in enumerate(cluster_items[:8], start=1):
+        print(f"{i}. Item ID {item}")
+
+    # Get the top 8 recommendations using nearest neighbors
+    distance, suggestion = model.kneighbors(Pivot.iloc[index, :].values.reshape(1, -1), n_neighbors=9)
+
+    input_title = Pivot.index[index]
+    print(f"Recommended items:")
+    for i, idx in enumerate(suggestion[0]):
+        if idx != index:
+            Id = main_art['ID'].iloc[idx]
+            title = Pivot.index[idx]
+            image_url = main_art['Image URL'].iloc[idx]
+            style = main_art['Style'].iloc[idx]
+            category = main_art['Category'].iloc[idx]
+            artist = main_art['Artist'].iloc[idx]
+            print(f" {i}:")
+            print(f"  Index: {idx}")
+            print(f"   ID: {Id}")
+            print(f"   Title: {title}")
+            print(f"   Image URL: {image_url}")
+            print(f"   Style: {style}")
+            print(f"   Category: {category}")
+            print(f"   Artist: {artist}")
+    # Calculate precision and recall
+    actual_items = cluster_items[:8]
+    recommended_indices = suggestion[0][1:]  # Exclude the input index
+
+    precision = precision_score(actual_items, recommended_indices, average='micro')
+    recall = recall_score(actual_items, recommended_indices, average='micro')
+    f1 = f1_score(actual_items, recommended_indices, average='micro')
+
+    print(f"Precision: {precision:.2f}")
+    print(f"Recall: {recall:.2f}")
+    print(f"F1 Score: {f1:.2f}")
+
+# Define the 'id' you want to check
+search_id = '577284aeedc2cb3880fe8ca7'
+
+# Call the function to get recommendations and calculate precision and recall
+get_recommendations(search_id)
+
+
+Text cell <T5s3z1vV8C3e>
+# %% [markdown]
+## Creating our Hybrid model
+
+Code cell <1urfg0gJU_yg>
+# %% [code]
+def hybrid_recommendation(search_id, num_recommendations=8):
+    # Search for the 'item_id' corresponding to the 'id'
+    item_id = None  # Initialize with None in case the 'id' is not found
+
+    # Assuming you have a DataFrame 'your_data' with columns 'item_id' and 'id'
+    for index, row in New_Cont.iterrows():
+        if row['ID'] == search_id:
+            item_id = index  # Use the index as 'item_id'
+            break
+
+    try:
+        # Find the index of the input title in Pivot
+        item_index = New_Cont.index.get_loc(item_id)
+
+        # Content-based recommendation
+        cluster_id = item_to_cluster.get(item_index)
+        content_recommendations = []
+
+        if cluster_id is not None:
+            cluster_items_indices = np.where(item_clusters == cluster_id)[0]
+            cluster_items_indices = cluster_items_indices[cluster_items_indices != item_index]
+
+            items_in_cluster = [item for item in item_to_cluster.keys() if item_to_cluster[item] == cluster_id]
+            items_in_cluster.remove(item_index)
+
+            sim_scores = list(enumerate(cosine_sim[item_index]))
+            sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+            sim_scores = [i for i in sim_scores if i[0] in cluster_items_indices]
+            sim_scores = sim_scores[:num_recommendations]
+
+            content_recommendations = [i[0] for i in sim_scores]
+
+        # Collaborative filtering recommendation
+        distance, suggestion = model.kneighbors(Pivot.iloc[item_index, :].values.reshape(1, -1), n_neighbors=num_recommendations+1)
+        collab_recommendations = suggestion[0][1:]  # Exclude the input item
+
+        # Hybrid recommendations
+        hybrid_recommendations = list(set(content_recommendations) & set(collab_recommendations))
+
+        # Create a dictionary to store the titles and URLs
+        titles_and_urls = {}
+
+        # Print content-based recommendations
+        if len(content_recommendations) > 0:
+            print("Content-Based Recommendations:")
+            for i, index in enumerate(content_recommendations, start=1):
+                title = New_Cont['Title'].iloc[index]  # Replace 'Title' with the actual column name
+                Id = main_art['ID'].iloc[index]
+                image_url = main_art['Image URL'].iloc[index]
+                style = main_art['Style'].iloc[index]
+                category = main_art['Category'].iloc[index]
+                artist = main_art['Artist'].iloc[index]
+                print(f" {i}:")
+                print(f"   Item ID {index}")
+                print(f"   ID: {Id}")
+                print(f"   Title: {title}")
+                print(f"   Image URL: {image_url}")
+                print(f"   Style: {style}")
+                print(f"   Category: {category}")
+                print(f"   Artist: {artist}")
+                titles_and_urls[index] = {'Title': title, 'Image URL': image_url, 'Style': style, 'Category': category, 'Artist': artist}
+
+        # Print collaborative filtering recommendations
+        if len(collab_recommendations) > 0:
+            print(" ")
+            print("Collaborative Filtering Recommendations:")
+            for i, index in enumerate(collab_recommendations, start=1):
+                title = Pivot.index[index]
+                Id = main_art['ID'].iloc[index]
+                image_url = main_art['Image URL'].iloc[index]
+                style = main_art['Style'].iloc[index]
+                category = main_art['Category'].iloc[index]
+                artist = main_art['Artist'].iloc[index]
+                print(f" {i}:")
+                print(f"  Index: {index}")
+                print(f"   ID: {Id}")
+                print(f"   Title: {title}")
+                print(f"   Image URL: {image_url}")
+                print(f"   Style: {style}")
+                print(f"   Category: {category}")
+                print(f"   Artist: {artist}")
+                titles_and_urls[index] = {'Title': title, 'Image URL': image_url, 'Style': style, 'Category': category, 'Artist': artist}
+
+        # Check if there are fewer than 8 matches in the hybrid intersection
+        if len(hybrid_recommendations) < num_recommendations:
+            remaining = num_recommendations - len(hybrid_recommendations)
+
+            # Distribute the remaining recommendations evenly between content and collaborative
+            content_remaining = remaining // 2
+            collab_remaining = remaining - content_remaining
+
+            # Add recommendations from content-based filtering
+            content_additional_recommendations = [item for item in content_recommendations if item not in hybrid_recommendations]
+            for i in range(content_remaining):
+                if i < len(content_additional_recommendations):
+                    hybrid_recommendations.append(content_additional_recommendations[i])
+
+            # Add recommendations from collaborative filtering
+            collab_additional_recommendations = [item for item in collab_recommendations if item not in hybrid_recommendations]
+            for i in range(collab_remaining):
+                if i < len(collab_additional_recommendations):
+                    hybrid_recommendations.append(collab_additional_recommendations[i])
+
+        # Print hybrid recommendations with titles and URLs
+        if len(hybrid_recommendations) > 0:
+            print(" ")
+            print("Hybrid Recommendations:")
+            for i, index in enumerate(hybrid_recommendations, start=1):
+                item_data = titles_and_urls.get(index, {'title': 'Title not found', 'image_url': 'URL not found'})
+                Id = main_art['ID'].iloc[index]
+                image_url = main_art['Image URL'].iloc[index]
+                style = main_art['Style'].iloc[index]
+                category = main_art['Category'].iloc[index]
+                artist = main_art['Artist'].iloc[index]
+                title = titles_and_urls[index]['Title']  # Corrected here
+                print(f" {i}:")
+                print(f"  Item ID {index}")
+                print(f"   ID: {Id}")
+                print(f"   Title: {title}")
+                print(f"   Image URL: {image_url}")
+                print(f"   Style: {style}")
+                print(f"   Category: {category}")
+                print(f"   Artist: {artist}")
+
+    except KeyError:
+        print("Item not found in Pivot.")
+
+# Define the 'id' you want to check
+search_id = '58c6237dedc2c9c7dc0de1ae'
+
+# Get hybrid recommendations
+hybrid_recommendation(search_id)
+
+
+
